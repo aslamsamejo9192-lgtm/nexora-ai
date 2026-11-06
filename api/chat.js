@@ -2,11 +2,12 @@
 // POST /api/chat { model, body } -> Google's :streamGenerateContent SSE,
 // streamed back verbatim so the page's existing SSE parsing works unchanged.
 // The key lives only in the GEMINI_API_KEY env var — never in the page.
+// gemini-2.5-flash is retired for new keys (Google 404s it); gemini-3.8-flash
+// persistently 503s on the free tier, so gemini-3.5-flash-lite is the default.
 var ALLOWED_MODELS = [
-  "gemini-3.8-flash",
   "gemini-3.5-flash-lite",
   "gemini-3.1-flash-lite",
-  "gemini-2.5-flash"
+  "gemini-3.8-flash"
 ];
 
 module.exports = async function (req, res) {
