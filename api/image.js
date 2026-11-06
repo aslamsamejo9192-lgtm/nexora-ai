@@ -3,10 +3,10 @@
 // :generateContent (Gemini image models). Google's JSON is returned as-is,
 // so the page's existing response parsing works unchanged.
 // The key lives only in the GEMINI_API_KEY env var — never in the page.
+// Imagen 4 IDs 404 on the Gemini API v1beta for this key, so only
+// gemini-2.5-flash-image is offered server-side (free quota may 429).
 var ALLOWED_IMAGE_MODELS = [
-  "gemini-2.5-flash-image",
-  "imagen-4.0-generate-001",
-  "imagen-4.0-fast-generate-001"
+  "gemini-2.5-flash-image"
 ];
 
 module.exports = async function (req, res) {
