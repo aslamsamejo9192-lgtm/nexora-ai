@@ -11,6 +11,16 @@ var ALLOWED_MODELS = [
 ];
 
 module.exports = async function (req, res) {
+  // CORS: the new Nexora preview (hosted on another origin) calls this API
+  // directly, so allow any origin. The key stays server-side; nothing secret
+  // is exposed by allowing the call.
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  if (req.method === "OPTIONS") {
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.status(204).end();
+    return;
+  }
   if (req.method !== "POST") {
     res.status(405).json({ error: { message: "Method not allowed." } });
     return;
