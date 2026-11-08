@@ -260,6 +260,17 @@
       .speak-btn{display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line); background:transparent; color:var(--muted); border-radius:999px; padding:4px 10px; font-size:12.5px; cursor:pointer;}
       .speak-btn:hover{color:var(--text); border-color:var(--line-2);}
       .speak-btn.playing{color:var(--accent-deep); border-color:var(--accent-deep);}
+      .vg-box{max-width:640px; margin-top:14px;}
+      .vg-box textarea{width:100%; box-sizing:border-box; resize:vertical; min-height:120px; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--panel); color:var(--text); font:inherit; font-size:15px; line-height:1.6;}
+      .vg-box textarea:focus{outline:2px solid var(--accent); outline-offset:1px;}
+      .vg-row{display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap;}
+      .vg-count{color:var(--muted); font-size:12.5px;}
+      .vg-gen{margin-left:auto; background:var(--black); color:var(--black-ink); font-weight:700; font-size:14px; padding:9px 18px; border:0; border-radius:999px; cursor:pointer;}
+      .vg-gen:disabled{opacity:.5; cursor:default;}
+      .vg-err{color:var(--danger); font-size:13.5px; min-height:18px; margin:8px 0 0;}
+      .vg-out{margin-top:10px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+      .vg-out audio{flex:1; min-width:220px;}
+      .vg-dl{color:var(--accent-deep); font-weight:600; font-size:14px;}
       .msg .body{font-size:15px; line-height:1.65; padding-top:4px; white-space:pre-wrap; overflow-wrap:anywhere;}
       .typing{display:inline-flex; gap:5px; padding-top:10px;}
       .typing i{width:7px; height:7px; border-radius:50%; background:var(--accent); opacity:.4; animation:tp 1.1s infinite;}
@@ -502,6 +513,10 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3.2 2"/></svg>
             History
           </button>
+          <button class="nav-item" data-nav="voice">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6.5 9H3v6h3.5L11 19z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.2 6a9 9 0 0 1 0 12"/></svg>
+            Voice Generator
+          </button>
         </nav>
 
         <div class="history" id="historyList" aria-label="Chat history"></div>
@@ -634,6 +649,25 @@
               <h2>History</h2>
               <p class="sub">Every conversation, newest first.</p>
               <div class="list-rows" id="historyFullList"></div>
+            </section>
+
+            <!-- VOICE GENERATOR -->
+            <section class="subview" id="voiceView">
+              <h2>Voice Generator</h2>
+              <p class="sub">Type a prompt and hear it spoken. Powered by HeyGen Voice Turbo (free until 30 Nov 2026).</p>
+              <div class="vg-box">
+                <textarea id="vgText" rows="5" maxlength="3000" placeholder="Type the text you want to hear…"></textarea>
+                <div class="vg-row">
+                  <select id="vgVoice" aria-label="Voice"></select>
+                  <span class="vg-count" id="vgCount">0 / 3000</span>
+                  <button class="vg-gen" id="vgGenerate" type="button">Generate voice</button>
+                </div>
+                <p class="vg-err" id="vgErr"></p>
+                <div class="vg-out" id="vgOut" style="display:none;">
+                  <audio id="vgAudio" controls></audio>
+                  <a class="vg-dl" id="vgDownload" download="nexora-voice.wav">Download voice</a>
+                </div>
+              </div>
             </section>
           </div>
         </div>
@@ -927,7 +961,7 @@
         modelBtn: $("modelBtn"), modelMenu: $("modelMenu"),
         chatMenuWrap: $("chatMenuWrap"), chatMenu: $("chatMenu"),
         authActions: $("authActions"), upgradeBtn: $("upgradeBtn"), exportBtn: $("exportBtn"),
-        views: { explore: $("exploreView"), library: $("libraryView"), files: $("filesView"), history: $("historyView") },
+        views: { explore: $("exploreView"), library: $("libraryView"), files: $("filesView"), history: $("historyView"), voice: $("voiceView") },
         toast: $("toast")
       };
 
@@ -1400,6 +1434,42 @@
         sb.addEventListener("click", function(){ speakText(m.text, sb); });
       }
 
+      /* ---------------- Voice Generator view ---------------- */
+      (function(){
+        var sel = $("vgVoice");
+        VOICES.forEach(function(v){
+          var o = document.createElement("option");
+          o.value = v; o.textContent = v.charAt(0).toUpperCase() + v.slice(1);
+          sel.appendChild(o);
+        });
+        sel.value = state.settings.voice || "nadine";
+        sel.addEventListener("change", function(){ state.settings.voice = this.value; save(); var vs = $("voiceSelect"); if (vs) vs.value = this.value; });
+        var ta = $("vgText");
+        ta.addEventListener("input", function(){ $("vgCount").textContent = ta.value.length + " / 3000"; });
+        var outUrl = null;
+        $("vgGenerate").addEventListener("click", function(){
+          var text = ta.value.trim();
+          var err = $("vgErr"); err.textContent = "";
+          if (!text) { err.textContent = "Type some text first."; return; }
+          var btn = $("vgGenerate"); btn.disabled = true; btn.textContent = "Generating\u2026";
+          fetch(VOICE_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: text.slice(0, 3000), voice: sel.value }) })
+          .then(function(res){
+            if (!res.ok) return res.json().then(function(j){ throw new Error((j && j.error && j.error.message) || ("Voice failed (" + res.status + ").")); }, function(){ throw new Error("Voice failed (" + res.status + ")."); });
+            return res.blob();
+          })
+          .then(function(blob){
+            if (outUrl) URL.revokeObjectURL(outUrl);
+            outUrl = URL.createObjectURL(blob);
+            var audio = $("vgAudio"); audio.src = outUrl;
+            $("vgDownload").href = outUrl;
+            $("vgOut").style.display = "flex";
+            audio.play().catch(function(){});
+          })
+          .catch(function(e){ err.textContent = e.message || "Voice generation failed."; })
+          .then(function(){ btn.disabled = false; btn.textContent = "Generate voice"; });
+        });
+      })();
+
       /* ---------------- Live reply (streaming) ---------------- */
       function streamReply(chat, bodyEl){
         var contents = chat.messages.map(function(m){
@@ -1864,7 +1934,7 @@
         if (this.value !== "en") this.value = "en";
       });
       $("streamToggle").addEventListener("change", function(){ state.settings.stream = this.checked; save(); });
-      $("voiceSelect").addEventListener("change", function(){ state.settings.voice = this.value; save(); toast("Voice set to " + this.options[this.selectedIndex].text + "."); });
+      $("voiceSelect").addEventListener("change", function(){ state.settings.voice = this.value; save(); var vg = $("vgVoice"); if (vg) vg.value = this.value; toast("Voice set to " + this.options[this.selectedIndex].text + "."); });
       $("enterToggle").addEventListener("change", function(){ state.settings.enterSend = this.checked; save(); });
       $("soundToggle").addEventListener("change", function(){ state.settings.sound = this.checked; save(); if (this.checked) blip(); });
       $("memoryToggle").addEventListener("change", function(){ state.settings.memory = this.checked; save(); });
